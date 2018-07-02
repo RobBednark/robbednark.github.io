@@ -1,0 +1,3 @@
+o Replace my photo with my recent photo.
+o add links to all my social media from my email address
+o add link to my ancestry.com family tree
