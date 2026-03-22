@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hidden Letters</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f3f4f6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem 1rem;
+      gap: 1.25rem;
+    }
+
+    /* ── Top controls ── */
+    #controls-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    #controls-top label {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1rem;
+      font-weight: 500;
+      color: #374151;
+    }
+
+    #numToSelect {
+      width: 5rem;
+      padding: 0.4rem 0.6rem;
+      font-size: 1rem;
+      border: 1.5px solid #d1d5db;
+      border-radius: 6px;
+      text-align: center;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    #numToSelect:focus { border-color: #3b82f6; }
+    #numToSelect.invalid { border-color: #ef4444; }
+
+    #input-error {
+      font-size: 0.8rem;
+      color: #ef4444;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ── Loading / error states ── */
+    #loading {
+      color: #6b7280;
+      font-size: 0.95rem;
+    }
+
+    #error-banner {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #b91c1c;
+      padding: 0.75rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    #retry-btn {
+      padding: 0.3rem 0.8rem;
+      background: #ef4444;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+
+    #retry-btn:hover { background: #dc2626; }
+
+    /* ── Grid ── */
+    #grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      justify-content: center;
+      max-width: 960px;
+      width: 100%;
+    }
+
+    .square {
+      width: 120px;
+      min-height: 80px;
+      padding: 0.75rem 0.5rem;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.35rem;
+      user-select: none;
+      transition: background-color 0.22s ease, color 0.22s ease,
+                  border-color 0.22s ease, transform 0.1s ease,
+                  box-shadow 0.22s ease;
+    }
+
+    .square:not(.frozen):hover {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px #bfdbfe55;
+      transform: translateY(-1px);
+    }
+
+    .square.selected {
+      background: #3b82f6;
+      border-color: #2563eb;
+      color: white;
+      box-shadow: 0 2px 8px #3b82f666;
+    }
+
+    .square.selected:not(.frozen):hover {
+      background: #2563eb;
+      border-color: #1d4ed8;
+      box-shadow: 0 2px 12px #3b82f688;
+    }
+
+    .square.frozen {
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .square .word {
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-align: center;
+      word-break: break-word;
+    }
+
+    .square .meta {
+      font-size: 0.78rem;
+      color: #6b7280;
+      opacity: 0;
+      transition: opacity 0.45s ease 0.1s;
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+
+    .square.selected .meta { color: #bfdbfe; }
+    .square.revealed .meta { opacity: 1; }
+
+    /* ── Bottom controls ── */
+    #controls-bottom {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    button#submit-btn, button#new-words-btn {
+      padding: 0.55rem 1.4rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s, transform 0.1s;
+    }
+
+    button#submit-btn {
+      background: #3b82f6;
+      color: white;
+    }
+
+    button#submit-btn:not(:disabled):hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+    }
+
+    button#submit-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    button#new-words-btn {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    button#new-words-btn:hover {
+      background: #d1d5db;
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="controls-top">
+    <label>
+      How many?
+      <input type="number" id="numToSelect" min="1" max="26" placeholder="1–26">
+    </label>
+    <span id="input-error" class="hidden">Enter a number between 1 and 26</span>
+  </div>
+
+  <div id="loading">Loading word list…</div>
+
+  <div id="error-banner" class="hidden">
+    Failed to load word list.
+    <button id="retry-btn">Retry</button>
+  </div>
+
+  <div id="grid"></div>
+
+  <div id="controls-bottom">
+    <button id="submit-btn" disabled>Submit</button>
+    <button id="new-words-btn">New Words</button>
+  </div>
+
+  <script>
+    const WORD_LIST_URL = 'diceware.txt';
+
+    const elLoading    = document.getElementById('loading');
+    const elError      = document.getElementById('error-banner');
+    const elRetry      = document.getElementById('retry-btn');
+    const elGrid       = document.getElementById('grid');
+    const elNumInput   = document.getElementById('numToSelect');
+    const elInputError = document.getElementById('input-error');
+    const elSubmit     = document.getElementById('submit-btn');
+    const elNewWords   = document.getElementById('new-words-btn');
+
+    let wordPool  = [];   // full parsed word list
+    let squares   = [];   // array of { el, word, number, letter }
+    let selected  = new Set();  // indices of selected squares
+    let frozen    = false;
+
+    // ── Word list fetching ───────────────────────────────────────────────────
+
+    async function loadWordList() {
+      elLoading.classList.remove('hidden');
+      elError.classList.add('hidden');
+      elGrid.innerHTML = '';
+      frozen = false;
+
+      try {
+        const res = await fetch(WORD_LIST_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const text = await res.text();
+        wordPool = parseWordList(text);
+        if (wordPool.length < 26) throw new Error('Word list too short');
+        elLoading.classList.add('hidden');
+        initGrid();
+      } catch (err) {
+        elLoading.classList.add('hidden');
+        elError.classList.remove('hidden');
+      }
+    }
+
+    function parseWordList(text) {
+      return text.split('\n')
+        .map(l => l.trim().toLowerCase())
+        .filter(l => l.length > 0);
+    }
+
+    // ── Grid initialization ──────────────────────────────────────────────────
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function initGrid() {
+      elGrid.innerHTML = '';
+      selected.clear();
+      frozen = false;
+      updateSubmitState();
+
+      const words   = shuffle([...wordPool]).slice(0, 26);
+      const numbers = shuffle([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26]);
+
+      squares = words.map((word, i) => {
+        const num    = numbers[i];
+        const letter = String.fromCharCode(64 + num); // A=1 … Z=26
+
+        const el = document.createElement('div');
+        el.className = 'square';
+        el.innerHTML = `
+          <span class="word">${word}</span>
+          <span class="meta">${letter}&nbsp;/&nbsp;${num}</span>
+        `;
+
+        el.addEventListener('click', () => onSquareClick(i));
+        elGrid.appendChild(el);
+
+        return { el, word, number: num, letter };
+      });
+    }
+
+    // ── Square interaction ───────────────────────────────────────────────────
+
+    function onSquareClick(idx) {
+      if (frozen) return;
+      const numToSelect = getNumToSelect();
+      if (numToSelect === null) return;
+
+      if (selected.has(idx)) {
+        selected.delete(idx);
+        squares[idx].el.classList.remove('selected');
+      } else if (selected.size < numToSelect) {
+        selected.add(idx);
+        squares[idx].el.classList.add('selected');
+      }
+
+      updateSubmitState();
+    }
+
+    // ── NumToSelect input ────────────────────────────────────────────────────
+
+    function getNumToSelect() {
+      const val = parseInt(elNumInput.value, 10);
+      if (isNaN(val) || val < 1 || val > 26) return null;
+      return val;
+    }
+
+    elNumInput.addEventListener('input', () => {
+      const n = getNumToSelect();
+      if (n === null) {
+        elNumInput.classList.add('invalid');
+        elInputError.classList.remove('hidden');
+      } else {
+        elNumInput.classList.remove('invalid');
+        elInputError.classList.add('hidden');
+
+        // Deselect excess squares if the new number is smaller
+        if (selected.size > n) {
+          const excess = [...selected].slice(n);
+          for (const idx of excess) {
+            selected.delete(idx);
+            squares[idx].el.classList.remove('selected');
+          }
+        }
+      }
+      updateSubmitState();
+    });
+
+    // ── Submit ───────────────────────────────────────────────────────────────
+
+    function updateSubmitState() {
+      const n = getNumToSelect();
+      elSubmit.disabled = (n === null || selected.size !== n || squares.length === 0);
+    }
+
+    elSubmit.addEventListener('click', () => {
+      if (elSubmit.disabled) return;
+      frozen = true;
+      elSubmit.disabled = true;
+      for (const sq of squares) {
+        sq.el.classList.add('frozen', 'revealed');
+      }
+    });
+
+    // ── New Words ────────────────────────────────────────────────────────────
+
+    elNewWords.addEventListener('click', () => {
+      if (wordPool.length === 0) return;
+      initGrid();
+    });
+
+    // ── Retry ────────────────────────────────────────────────────────────────
+
+    elRetry.addEventListener('click', loadWordList);
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+
+    loadWordList();
+  </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s 'https://theworld.com/~reinhold/diceware.wordlist.asc')"
+    ]
+  }
+}
